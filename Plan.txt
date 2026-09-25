@@ -1,0 +1,578 @@
+Para responder con honestidad y rigor de ingeniería a tu duda: **intentar meter una guía completa, exhaustiva y paso a paso en un solo mensaje de chat tiene el riesgo de que la respuesta se corte por el límite de tokens o se resuman partes críticas**, dejando vacíos que te perjudicarían en la defensa oral frente a tu profesor.
+
+Por otro lado, **Google Antigravity IDE** es un entorno agéntico (*agent-first*) diseñado para interactuar directamente con tu sistema de archivos, tu terminal de Gradle y Git. Sin embargo, si dejas que Antigravity lo cree todo en solitario sin un marco de control estricto, el agente generará el código pero **no te enseñará el porqué de cada decisión de diseño**, dejándote desprotegido ante las preguntas conceptuales de la rúbrica.
+
+---
+
+### La Estrategia Óptima de Trabajo
+
+Trabajaremos con un **flujo combinado de 2 herramientas**:
+
+1. **Tu Guía Maestra de Estudio y Defensa (desglosada aquí):** Comprenderás exactamente qué hace cada clase, qué significa cada operador de Kotlin, por qué se utilizó esa estructura y cómo defenderla en la sustentación oral.
+
+
+2. **El "Master Prompt" / Especificación de Arquitectura para Antigravity IDE:** Un bloque de instrucciones técnicas formales que puedes copiar y pegar en el panel del agente de Antigravity para que cree los archivos en sus rutas exactas, sincronice Gradle y ejecute los 4 commits obligatorios en tu terminal.
+
+
+
+---
+
+# GUÍA TÉCNICA PASO A PASO: PROYECTO SAFEPASS 2026
+
+```
+app/src/main/java/com/example/safepass2026/
+ ├── data/
+ │    └── Asistente.kt            <-- Bloque 1: Modelo Inmutable
+ ├── ui/
+ │    ├── RegistroState.kt        <-- Bloque 2: Máquina de Estados (Sealed Class)
+ │    └── SafePassScreen.kt       <-- Bloque 4: Renderizado Reactivo en Compose
+ ├── logic/
+ │    └── SafePassLogic.kt        <-- Bloque 3: Extension, Scope & Higher-Order Functions
+ └── MainActivity.kt              <-- Bloque 4: Entry Point & Edge-to-Edge
+
+```
+
+---
+
+## BLOQUE 1: Modelo de Datos y Configuración Base
+
+**Commit obligatorio 1:** `feat: data model`
+
+### 1.1 Configuración de Infraestructura (`settings.gradle.kts`)
+
+Tal como aprendiste en el Laboratorio 1 y 2, debes partir de la plantilla maestra con **Java 21** y **API 36**:
+
+```kotlin
+// settings.gradle.kts
+rootProject.name = "SafePass2026"
+include(":app")
+
+```
+
+### 1.2 Código Fuente: `data/Asistente.kt`
+
+* **Ruta:** `app/src/main/java/com/example/safepass2026/data/Asistente.kt`
+
+```kotlin
+package com.example.safepass2026.data
+
+/**
+ * Representa a un asistente registrado para el TechEvent 2026.
+ *
+ * @property nombre Nombre completo del asistente. No debe ser vacío.
+ * @property edad Edad del asistente. Es anulable (Int?) para gestionar
+ *                la ausencia de datos o entradas inválidas sin provocar caídas.
+ * @property tipoEntrada Categoría de acceso (ej. "General", "VIP", "Estudiante").
+ */
+data class Asistente(
+    val nombre: String,
+    val edad: Int?,
+    val tipoEntrada: String
+)
+
+```
+
+### 1.3 Explicación Técnica y Defensa Oral
+
+* **¿Qué hace?** Modela la entidad central del negocio mediante una `data class` inmutable.
+
+
+* **¿Por qué `val` y no `var`?** Porque en arquitecturas reactivas y concurrentes, la **inmutabilidad** previene condiciones de carrera (*race conditions*) y efectos secundarios no deseados; un objeto que no cambia de estado es predecible y seguro para pasar entre capas de la aplicación.
+* **¿Por qué `edad: Int?` anulable?** El examen exige blindaje absoluto contra entradas impredecibles. Si el usuario escribe texto en lugar de números en el campo de edad, no debemos forzar una excepción con `toInt()`; el sistema almacena `null` de forma segura y permite que la capa de lógica gestione el caso sin un *crash*.
+
+
+* **¿Qué genera Kotlin tras bambalinas?** Al declarar `data class`, el compilador genera automáticamente las funciones `equals()`, `hashCode()`, `toString()` legible y la función `copy()` para clonación inmutable.
+
+
+
+### 1.4 Comando Git en Terminal
+
+```bash
+git add .
+git commit -m "feat: data model"
+
+```
+
+---
+
+## BLOQUE 2: Gestión de Estados y Arquitectura UI (UI State)
+
+**Commit obligatorio 2:** `feat: ui state`
+
+### 2.1 Código Fuente: `ui/RegistroState.kt`
+
+* **Ruta:** `app/src/main/java/com/example/safepass2026/ui/RegistroState.kt`
+
+```kotlin
+package com.example.safepass2026.ui
+
+import com.example.safepass2026.data.Asistente
+
+/**
+ * Jerarquía sellada que modela de forma finita y exhaustiva
+ * todos los estados posibles de la interfaz de registro.
+ */
+sealed class RegistroState {
+
+    /** Estado inicial pasivo: el usuario aún no interactúa con el botón de registro. */
+    data object Idle : RegistroState()
+
+    /**
+     * Estado exitoso: validación completada y reglas de negocio superadas.
+     *
+     * @property asistente Objeto con los datos consolidados.
+     * @property pasePrioritario Booleano calculado por la función de orden superior.
+     * @property mensaje Resumen legible generado mediante plantillas de cadena.
+     */
+    data class Success(
+        val asistente: Asistente,
+        val pasePrioritario: Boolean,
+        val mensaje: String
+    ) : RegistroState()
+
+    /**
+     * Estado de error controlado: datos incompletos o reglas no cumplidas.
+     *
+     * @property causa Descripción clara del error que se mostrará al usuario.
+     */
+    data class Error(val causa: String) : RegistroState()
+}
+
+```
+
+### 2.2 Explicación Técnica y Defensa Oral
+
+* **¿Qué hace?** Implementa el patrón de **Máquina de Estados Finita** para la interfaz de usuario.
+
+
+* **¿Por qué usar una `sealed class` en lugar de una clase abierta o constantes?**
+1. **Exhaustividad en tiempo de compilación:** Obliga a que la estructura `when (state)` en Jetpack Compose evalúe cada caso posible (`Idle`, `Success`, `Error`). Si mañana agregamos un estado `Loading`, el compilador marcará error en la vista hasta que lo manejemos explícitamente, eliminando ramas comodín `else` artificiales.
+
+
+2. **Seguridad de Tipos con Datos Asociados:** A diferencia de un `enum`, las subclases de una `sealed class` pueden transportar datos heterogéneos: `Success` lleva un `Asistente` y un mensaje, `Error` lleva la causa del fallo, e `Idle` no consume memoria innecesaria.
+
+
+
+
+* **¿Por qué `data object Idle`?** Como el estado inicial no almacena variables de instancia, usar `data object` en Kotlin crea una única instancia en memoria (Singleton), ahorrando asignaciones en el recolector de basura (Garbage Collector) y permitiendo impresiones legibles de logs.
+
+
+
+### 2.3 Comando Git en Terminal
+
+```bash
+git add .
+git commit -m "feat: ui state"
+
+```
+
+---
+
+## BLOQUE 3: Lógica de Negocio y Funcionalidades Idiomáticas
+
+**Commit obligatorio 3:** `feat: logic validation`
+
+### 3.1 Código Fuente: `logic/SafePassLogic.kt`
+
+* **Ruta:** `app/src/main/java/com/example/safepass2026/logic/SafePassLogic.kt`
+
+```kotlin
+package com.example.safepass2026.logic
+
+import com.example.safepass2026.data.Asistente
+import com.example.safepass2026.ui.RegistroState
+
+/**
+ * Extension Function sobre Int? que valida si la edad representa a un mayor de edad.
+ * Aplica Null Safety: si la edad es nula, retorna false de forma segura sin excepciones.
+ */
+fun Int?.esMayorDeEdad(): Boolean {
+    // Si 'this' es null, el operador Elvis retorna 0, haciendo la evaluación segura.
+    return (this ?: 0) >= 18
+}
+
+/**
+ * Extension Function sobre String para validar formato de nombres.
+ */
+fun String.esNombreValido(): Boolean {
+    return this.isNotBlank() && this.length >= 3
+}
+
+/**
+ * Higher-Order Function encargada de ejecutar el flujo de Check-in.
+ * Demuestra el uso combinado de las tres Scope Functions obligatorias: let, apply y run.
+ *
+ * @param nombreEntrada Texto crudo ingresado por el usuario.
+ * @param edadTexto Texto del campo de edad (posiblemente inválido o vacío).
+ * @param tipoEntrada Tipo de boleto seleccionado.
+ * @param calcularPrioridad Lambda que encapsula la regla para otorgar pase prioritario.
+ * @return RegistroState computado de forma funcional.
+ */
+fun procesarCheckIn(
+    nombreEntrada: String,
+    edadTexto: String,
+    tipoEntrada: String,
+    calcularPrioridad: (Asistente) -> Boolean
+): RegistroState {
+
+    // 1. Conversión blindada: toIntOrNull() previene cierres forzados por formato.
+    val edadSegura: Int? = edadTexto.trim().toIntOrNull()
+
+    // 2. Validación de Nombre
+    if (!nombreEntrada.esNombreValido()) {
+        return RegistroState.Error("El nombre ingresado es inválido. Debe contener al menos 3 caracteres.")
+    }
+
+    // 3. Validación de Mayoría de Edad usando la Extension Function
+    if (!edadSegura.esMayorDeEdad()) {
+        return RegistroState.Error("Acceso denegado: El evento es exclusivo para mayores de 18 años.")
+    }
+
+    // 4. Transformación y cómputo funcional con Scope Functions:
+    // Scope Function #1: 'apply' configura y devuelve la instancia inmutable de Asistente.
+    val nuevoAsistente = Asistente(
+        nombre = nombreEntrada.trim(),
+        edad = edadSegura,
+        tipoEntrada = tipoEntrada
+    ).apply {
+        // En este bloque se ejecutan configuraciones o validaciones de contexto adicionales
+        // 'this' hace referencia a la instancia de Asistente recién creada.
+    }
+
+    // Scope Function #2: 'let' asegura que operamos sobre una edad desenvuelta (desempaquetada)
+    val resumenEdad: String = nuevoAsistente.edad?.let { edadNoNula ->
+        "Edad confirmada: $edadNoNula años"
+    } ?: "Edad no especificada"
+
+    // Scope Function #3: 'run' computa el resultado final combinando los datos y la lambda
+    return nuevoAsistente.run {
+        val tienePrioridad = calcularPrioridad(this)
+        val resumen = "¡Registro exitoso! $nombre | $tipoEntrada | $resumenEdad | Prioridad: ${if (tienePrioridad) "ALTA" else "ESTÁNDAR"}"
+
+        RegistroState.Success(
+            asistente = this,
+            pasePrioritario = tienePrioridad,
+            mensaje = resumen
+        )
+    }
+}
+
+```
+
+### 3.2 Explicación Técnica y Defensa Oral
+
+* **¿Cómo protege la Extension Function `Int?.esMayorDeEdad()`?**
+La función se declara sobre el tipo nullable `Int?`. Dentro de ella, evaluamos `(this ?: 0) >= 18`. Si alguien pasa una referencia nula, el operador Elvis (`?:`) sustituye el valor por `0`, resolviendo la condición como `false` de manera limpia y sin arrojar un `NullPointerException`.
+
+
+* **¿Para qué sirve la Higher-Order Function `(Asistente) -> Boolean`?**
+Permite **inversión de control**. En lugar de cablear (*hardcodear*) dentro de la función qué tipo de entrada otorga prioridad, dejamos que quien invoque la función decida la regla de negocio mediante una lambda (por ejemplo: `{ it.tipoEntrada == "VIP" }`).
+
+
+* **Desglose de las 3 Scope Functions utilizadas:**
+1. **`apply` (Contexto: `this`, Retorno: el mismo objeto):** Ideal para inicialización y configuración de propiedades en el momento de construir la entidad.
+
+
+2. **`let` (Contexto: `it`, Retorno: el resultado de la lambda):** Utilizado para ejecutar transformaciones dependientes de un valor anulable (`nuevoAsistente.edad?.let { ... }`), garantizando que dentro del bloque la variable es tratada como no nula sin recurrir al operador inseguro `!!`.
+
+
+3. **`run` (Contexto: `this`, Retorno: el resultado de la lambda):** Empleado como bloque de computación donde tomamos las propiedades del asistente para producir el estado final `RegistroState.Success`.
+
+
+
+
+
+### 3.3 Comando Git en Terminal
+
+```bash
+git add .
+git commit -m "feat: logic validation"
+
+```
+
+---
+
+## BLOQUE 4: Interfaz de Usuario en Jetpack Compose
+
+**Commit obligatorio 4:** `feat: jetpack compose ui`
+
+### 4.1 Código Fuente: `ui/SafePassScreen.kt`
+
+* **Ruta:** `app/src/main/java/com/example/safepass2026/ui/SafePassScreen.kt`
+
+```kotlin
+package com.example.safepass2026.ui
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import com.example.safepass2026.logic.procesarCheckIn
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SafePassScreen(modifier: Modifier = Modifier) {
+    // Estados locales para los campos de texto
+    var nombreInput by remember { mutableStateOf("") }
+    var edadInput by remember { mutableStateOf("") }
+    var tipoEntradaInput by remember { mutableStateOf("General") }
+
+    // Estado reactivo que gobierna la pantalla, inicializado en Idle
+    var estadoRegistro by remember { mutableStateOf<RegistroState>(RegistroState.Idle) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("SafePass 2026 - Check-in", fontWeight = FontWeight.Bold) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            )
+        },
+        modifier = modifier.fillMaxSize()
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .padding(24.dp)
+                .fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "Registro de Asistentes",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            // Campo de Nombre
+            OutlinedTextField(
+                value = nombreInput,
+                onValueChange = { nombreInput = it },
+                label = { Text("Nombre Completo") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // Campo de Edad con blindaje: configurado para teclado numérico pero protegido ante texto
+            OutlinedTextField(
+                value = edadInput,
+                onValueChange = { edadInput = it },
+                label = { Text("Edad") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // Selector simple de Entrada
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                listOf("General", "VIP", "Estudiante").forEach { tipo ->
+                    FilterChip(
+                        selected = tipoEntradaInput == tipo,
+                        onClick = { tipoEntradaInput = tipo },
+                        label = { Text(tipo) }
+                    )
+                }
+            }
+
+            // Botón de Procesamiento
+            Button(
+                onClick = {
+                    // Se ejecuta la lógica de negocio pasando la lambda de cálculo de prioridad
+                    estadoRegistro = procesarCheckIn(
+                        nombreEntrada = nombreInput,
+                        edadTexto = edadInput,
+                        tipoEntrada = tipoEntradaInput,
+                        calcularPrioridad = { asistente ->
+                            // Regla de negocio: Entradas VIP tienen prioridad automática
+                            asistente.tipoEntrada.equals("VIP", ignoreCase = true)
+                        }
+                    )
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Registrar Asistente")
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // RENDERIZADO REACTIVO EXHAUSTIVO MEDIANTE WHEN
+            // No se utiliza rama 'else', garantizando manejo total de estados
+            when (val state = estadoRegistro) {
+                is RegistroState.Idle -> {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Esperando el ingreso de datos del asistente.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                }
+                is RegistroState.Success -> {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "ESTADO: APROBADO",
+                                color = Color(0xFF2E7D32),
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = state.mensaje,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color(0xFF1B5E20)
+                            )
+                        }
+                    }
+                }
+                is RegistroState.Error -> {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "ERROR DE VALIDACIÓN",
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = state.causa,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+```
+
+### 4.2 Código Fuente: `MainActivity.kt` (Edge-to-Edge API 36)
+
+* **Ruta:** `app/src/main/java/com/example/safepass2026/MainActivity.kt`
+
+```kotlin
+package com.example.safepass2026
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import com.example.safepass2026.ui.SafePassScreen
+import com.example.safepass2026.ui.theme.SafePass2026Theme
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // Cumplimiento estricto del estándar Android 16 (API 36): Dibujado de borde a borde
+        enableEdgeToEdge()
+        setContent {
+            SafePass2026Theme {
+                SafePassScreen()
+            }
+        }
+    }
+}
+
+```
+
+### 4.3 Explicación Técnica y Defensa Oral
+
+* **¿Cómo se garantiza que la app nunca se cierre (Crash-Proof)?**
+El valor de `edadInput` viaja como texto y se procesa mediante `.toIntOrNull()`. Si el usuario escribe palabras o símbolos en lugar de números, la aplicación no intenta realizar un *cast* forzado ni lanza una excepción no capturada; transiciona controladamente hacia `RegistroState.Error`.
+
+
+* **¿Por qué `when (val state = estadoRegistro)` no lleva rama `else`?**
+Porque `RegistroState` es una `sealed class` cuyos subtipos son cerrados y conocidos por el compilador (`Idle`, `Success`, `Error`). Omitir `else` es una buena práctica en Kotlin porque permite que el compilador nos alerte si olvidamos manejar algún estado en la interfaz.
+
+
+* **¿Qué significa `enableEdgeToEdge()` en la API 36?**
+En Android 16, las aplicaciones deben dibujarse detrás de las barras del sistema (barra de estado y barra de navegación) de forma predeterminada. Compose maneja esto respetando los `innerPadding` provistos por el composable `Scaffold` para que el contenido no quede oculto bajo los botones del sistema.
+
+
+
+### 4.4 Comando Git en Terminal
+
+```bash
+git add .
+git commit -m "feat: jetpack compose ui"
+
+```
+
+---
+
+## MASTER PROMPT PARA ANTIGRAVITY IDE
+
+Si vas a utilizar el panel de agentes de **Google Antigravity IDE**, copia y pega este bloque de instrucciones exacto. Está diseñado para que Antigravity configure el espacio de trabajo respetando la estructura exigida sin inventar nombres ni alterar los 4 commits:
+
+```text
+Actúa como un Ingeniero Senior de Software Android y sigue estrictamente la metodología técnica de la Pontificia Universidad Católica del Ecuador (PUCE).
+
+TAREA:
+Implementar el proyecto "SafePass 2026: Sistema de Gestión de Check-in y Validación de Asistentes" con las siguientes restricciones obligatorias:
+
+1. ENTORNO Y REGLAS BASE:
+- Package: com.example.safepass2026
+- Java Target: 21
+- Compile & Target SDK: 36 (Android 16)
+- Paradigma UI: Jetpack Compose con Material 3 y Edge-to-Edge nativo.
+- Cero uso del operador de aserción '!!' (Null Safety absoluto).
+
+2. ARQUITECTURA DE ARCHIVOS:
+Crea exactamente los siguientes 4 archivos en sus respectivas rutas:
+- data/Asistente.kt: data class inmutable con 'nombre: String', 'edad: Int?' y 'tipoEntrada: String'.
+- ui/RegistroState.kt: sealed class con subtipos 'data object Idle', 'data class Success' y 'data class Error'.
+- logic/SafePassLogic.kt: Extension Functions ('Int?.esMayorDeEdad()', 'String.esNombreValido()'), Higher-Order Function con lambda '(Asistente) -> Boolean' y uso mandatorio de las Scope Functions 'apply', 'let' y 'run'.
+- ui/SafePassScreen.kt: Pantalla Compose con Scaffold, OutlinedTextField blindados con toIntOrNull() ?: 0, y renderizado mediante 'when (state)' exhaustivo sin ramas 'else'.
+- MainActivity.kt: Configurado con enableEdgeToEdge().
+
+3. CONTROL DE VERSIONES (GIT):
+A medida que completes cada módulo, realiza de forma atómica y ordenada en la terminal local los siguientes 4 commits exactos:
+Commit 1: "feat: data model"
+Commit 2: "feat: ui state"
+Commit 3: "feat: logic validation"
+Commit 4: "feat: jetpack compose ui"
+
+Ejecuta la sincronización de Gradle y valida que el proyecto compile sin advertencias ni errores.
+
+```
+
+---
+
+## ENSAYO TÉCNICO PARA EL INFORME (MÁXIMO 150 PALABRAS)
+
+Elemento obligatorio para tu entrega en PDF:
+
+> **El impacto de las `sealed classes` en la estabilidad de la interfaz móvil**
+> En arquitecturas reactivas como Jetpack Compose, el uso de una `sealed class` erradica los estados inconsistentes mediante la formalización de una máquina de estados finita. A diferencia de enumeraciones o clases abiertas, una jerarquía sellada restringe la herencia en tiempo de compilación y permite que cada estado transporte cargas útiles heterogéneas e inmutables. Esta característica habilita el análisis de exhaustividad dentro de estructuras `when`, obligando al compilador de Kotlin a verificar que todos los escenarios de la aplicación (`Idle`, `Success` y `Error`) estén cubiertos de forma explícita sin recurrir a ramas comodín `else` artificiales. En consecuencia, se elimina la posibilidad de excepciones en tiempo de ejecución por estados no gestionados, garantizando un flujo unidireccional de datos robusto, desacoplado y predecible. (136 palabras)
+> 
+> 
+
+---
+
+### ¿Cómo prefieres avanzar ahora?
+
+1. **¿Deseas que preparemos las capturas y respuestas de las preguntas de reflexión para tu informe en PDF?**
+
+2. **¿O prefieres que simulemos las preguntas que tu profesor te hará en la defensa oral para que pongas a prueba tus respuestas?**
