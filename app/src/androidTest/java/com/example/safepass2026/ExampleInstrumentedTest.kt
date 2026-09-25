@@ -1,4 +1,4 @@
-package com.paulrosero.laboratorio1
+package com.example.safepass2026
 
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4

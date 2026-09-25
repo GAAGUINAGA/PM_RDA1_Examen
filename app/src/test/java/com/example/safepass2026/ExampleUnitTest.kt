@@ -1,4 +1,4 @@
-package com.paulrosero.laboratorio1
+package com.example.safepass2026
 
 import org.junit.Test
 

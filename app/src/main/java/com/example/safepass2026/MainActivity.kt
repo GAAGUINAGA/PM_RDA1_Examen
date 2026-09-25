@@ -1,4 +1,4 @@
-package com.example.laboratorio1
+package com.example.safepass2026
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -10,7 +10,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import com.paulrosero.laboratorio1.ui.theme.Laboratorio1Theme
+import com.example.safepass2026.ui.theme.Laboratorio1Theme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

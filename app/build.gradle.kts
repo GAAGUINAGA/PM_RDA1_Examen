@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.laboratorio1" // Deja el namespace que te generó Android Studio
+    namespace = "com.example.safepass2026" // Deja el namespace que te generó Android Studio
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.laboratorio1"
+        applicationId = "com.example.safepass2026"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
